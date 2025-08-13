@@ -10,7 +10,7 @@ typedef struct block_s {
     BOOL free;
 } block_s;
 
-block_s blocks[MAX_BLOCKS];
+block_s blocks[MAX_BLOCKS+1];
 int nblocks = 0;
 int mallocs = 0;
 int frees = 0;
