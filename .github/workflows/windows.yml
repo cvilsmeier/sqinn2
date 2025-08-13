@@ -20,10 +20,11 @@ jobs:
         dir
         cl.exe /Fe:sqinn.exe lib\*.c
         dir
-        echo "executing test"
-        REM .\sqinn2.exe -test
+        echo "make dist folder"
         md dist
         copy sqinn2.exe dist
+        echo "executing test"
+        dist\sqinn2.exe -test
         echo "build done"
 
     - name: Upload Artifact
