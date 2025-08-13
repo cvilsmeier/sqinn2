@@ -1,0 +1,281 @@
+Network Working Group                                       C. Vilsmeier
+Request for Comments: None                                   August 2025
+Category: Informational
+
+                    SQINN2 - SQLite over stdin/stdout
+
+Status of this Memo
+
+    This memo provides information for the Internet community. It does
+    not specify an Internet standard of any kind. Distribution of this
+    memo is unlimited.
+
+Copyright Notice
+
+    Copyright (C) The Internet Society (2025). All Rights Reserved.
+
+Abstract
+
+    This document describes the SQINN2 protocol, a protocol for accessing
+    a SQLite database over stdin/stdout.
+
+1. Rationale and Scope
+
+    There are SQLite databases all over the world. Increasingly, in a
+    world in which computing is ubiquitous, the computists want to make
+    even more SQLite databases. SQLite database files are created and
+    modified by the SQLite database library. SQLite, the library, is
+    fast, small, free and well tested. It is made by Richard Hipp.
+    SQLite is, by far, the most used database library on planet earth,
+    presumably in the whole universe. The SQLite library is written in
+    C, an ancient programming language from the medieval ages of kings
+    and queens.
+
+    Some younger computists want to use SQLite in more modern
+    programming languages like Java, Rust or Go. Some of those languages
+    make it unneccesarily hard to interface with a library written in C.
+    The reasons are manyfold: Threading issues, unclear memory models,
+    compiler issues, platform dependencies, dynamic library version
+    hell, and so forth.
+
+    To make it easier for the users of these languages, SQINN2 defines a
+    communication protocol so that 'client' processes can communicate
+    with a SQLite 'server' process and execute queries. All this over
+    stdin/stdout, so that clients can spawn a SQINN2 process and
+    communicate with it by sending and receiving bytes. Readers familiar
+    with UNIX pipes will instantly recognize this communication pattern,
+    as they use it in their daily work to forward data from one
+    process to another.
+
+1. The SQINN2 Communication Protocol
+
+1.1. Data Types
+
+    SQINN2 defines the following data types:
+
+        int32     A 4-byte integer value.
+
+        int64     A 8-byte integer value.
+
+        double    A 8-byte floating point value.
+
+        string    A length-prefixed byte string.
+
+        blob      A length-prefixed byte array.
+
+        value     A value of any of the above types, or NULL.
+
+1.1.1. Int32
+
+    An int32 is encoded as 4 bytes, MSB first (a.k.a. big-endian).
+
+    A sample int32 looks like this:
+
+    00 00 00 01   // int32 value 1
+
+    00 00 01 00   // int32 value 256
+
+    FF FF FF FF   // int32 value -1
+
+    FF FF FF FE   // int32 value -2
+
+1.1.1. Int64
+
+    An int64 is encoded as 8 bytes, MSB first (a.k.a. big-endian).
+
+    A sample int64 looks like this:
+
+    00 00 00 00 00 00 00 01   // int64 value 1
+
+    00 00 00 00 00 00 01 00   // int64 value 256
+
+    FF FF FF FF FF FF FF FF   // int64 value -1
+
+    FF FF FF FF FF FF FF FE   // int64 value -2
+
+1.1.1. Double
+
+    A double is encoded with the
+    8-byte IEEE 754 encoding of a double precision floating-point
+    value. The sign bit comes first, then the eponent bits, then
+    the fraction bits.
+
+    A sample double looks like this:
+
+    40 60 10 00 00 00 00 00   // double value 128.5
+
+1.1.1. String
+
+    A string is encoded with its length (a 4-byte int32) first, then the
+    string content, then a terminating null character. It is important
+    to note that the length includes the terminating null character. So,
+    an empty string has length 1, not 0. A string length of 0 is not
+    valid.
+
+    A sample string looks like this:
+
+    00 00 00 04     // int32 string length
+    41 42 43 00     // string data and terminating null character
+
+1.1.1. Blob
+
+    A blob is encoded with its length (a 4-byte int32) first, then the
+    blob's byte content.
+
+    A sample blob looks like this:
+
+    00 00 00 04     // int32 blob length
+    AF F0 33 E2     // blob data
+
+1.1.1. Value
+
+    A value is encoded with its type (one byte), followed by the encoding of its
+	int32/int64/double/string/blob content.
+
+	The following value types are defined:
+
+	VT_NULL   0   A NULL value.
+	VT_INT32  1   An int32 value.
+	VT_INT64  2   An int64 value.
+	VT_DOUBLE 3   A double value.
+	VT_STRING 4   A string value.
+	VT_BLOB   5   A blob value.
+
+	A sample value looks like this:
+
+	00      // NULL
+
+	01 00 00 00 02 // VT_INT32 followed by a 4-byte int32 value 2.
+
+	02 00 00 00 00 00 00 00 02 // VT_INT64 followed by a 8-byte int64 value 2.
+
+	03 00 00 00 00 00 00 00 02 // VT_DOUBLE followed by a 8-byte double value.
+
+	04 00 00 00 01 00  // VT_STRING followed by an empty string.
+
+	05 00 00 00 01 FF   // VT_BLOB followed by a 1-byte blob.
+
+1.1. Requests and Responses
+
+    A request is sent from the client to the server. A request has the
+    following format:
+
+        1 byte      A function code
+        N bytes     The request payload (depends on the function code)
+
+    The following function codes are defined:
+
+        FC_EXEC   1  Execute a parameterized SQL statement (INSERT,
+                     UPDATE, DELETE, etc.), possibly multiple times.
+
+        FC_QUERY  2  Execute a parameterized SQL query (SELECT).
+
+        FC_QUIT   9  Close connection and quit.
+
+    A response is sent from the server back to the client. It has the
+    following format:
+
+        N bytes   The response payload (depends on function code)
+
+    Synchronization
+
+        A client, having sent a request, must read the server response
+        completely before sending a new request.
+
+        A server must not send any data, except if requested
+        by a client. After the server has sent the response completely, it
+        must await the next request from the client.
+
+1.1.1 FC_EXEC
+
+    A FC_EXEC request tells the server that it should execute a DDL
+    (CREATE TABLE, CREATE INDEX, etc.) or a parameterized SQL statement
+    (INSERT, UPDATE, DELETE, etc.), possibly multiple times.
+
+    It has the following data objects:
+
+    sql          string   The sql statement that should be executed.
+
+    niterations  int32    Number of iterations. If niterations is 1,
+                          the statement is executed once. If it is
+                          greater than 1, the statement is executed
+                          multiple times, each time with another set of
+                          supplied parameters. This is useful, for
+                          example, for inserting many rows at once.
+
+    nparams      int32    The number of parameters per iteration. It can
+                          be 0.
+
+    params       []value  An array of (niterations * nparams) parameter values.
+
+    A sample FX_EXEC looks like this:
+
+    01                        // FC_EXEC
+    00 00 00 2C               // sql length
+	41 42 43 .... 34 00       // sql string content
+    00 00 00 02               // 2 iterations
+    00 00 00 02               // 2 params per iteration
+    00                        // 
+	
+
+
+|-------||-------||-------||-------||-------||-------||-------||-------|
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+
+
+
+
+
+
+1. TODO
+
+1.1. Frames
+
+    All data that is sent by a client to the server, or vice versa, is
+    framed. A frame has the following format:
+
+        4 byte    The frame payload length N
+        N bytes   The payload data
+
+    A sample frame looks like this:
+
+    00 00 00 07           // payload length is 7 bytes
+    61 62 63 64 65 66 67  // 7-byte payload data
+
+    The relationship between frames and requests/responses and data types is defined as follows:
+
+    1. A request can be contained in exactly one frame or split into several frames.
+
+    2. Each data object (int32, int64, double, string or blob) must be contained as a whole in one frame. data objects cannot be split into several frames.
+
+
+
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|
+|-------||-------||-------||-------||-------||-------||-------||-------|

@@ -1,0 +1,36 @@
+name: Linux
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Build
+      run: |
+        echo "build start"
+        pwd
+        ls -al
+        chmod a+x script/clean.sh script/build.sh
+        script/clean.sh
+        script/build.sh
+        echo "executing test"
+        bin/sqinn2 -version
+        bin/sqinn2 -sqlite
+        bin/sqinn2 -test
+        echo "build done"
+        rm -rf dist/
+        mkdir dist/
+        cp bin/sqinn2 dist/
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-linux
+        path: dist
+
