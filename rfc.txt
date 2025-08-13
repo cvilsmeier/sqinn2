@@ -2,7 +2,7 @@ Network Working Group                                       C. Vilsmeier
 Request for Comments: None                                   August 2025
 Category: Informational
 
-                    SQINN2 - SQLite over stdin/stdout
+                    sqinn2 - SQLite over stdin/stdout
 
 Status of this Memo
 
@@ -16,7 +16,7 @@ Copyright Notice
 
 Abstract
 
-    This document describes the SQINN2 protocol, a protocol for accessing
+    This document describes the sqinn2 protocol, a protocol for accessing
     a SQLite database over stdin/stdout.
 
 1. Rationale and Scope
@@ -38,20 +38,20 @@ Abstract
     compiler issues, platform dependencies, dynamic library version
     hell, and so forth.
 
-    To make it easier for the users of these languages, SQINN2 defines a
+    To make it easier for the users of these languages, sqinn2 defines a
     communication protocol so that 'client' processes can communicate
     with a SQLite 'server' process and execute queries. All this over
-    stdin/stdout, so that clients can spawn a SQINN2 process and
+    stdin/stdout, so that clients can spawn a sqinn2 process and
     communicate with it by sending and receiving bytes. Readers familiar
     with UNIX pipes will instantly recognize this communication pattern,
     as they use it in their daily work to forward data from one
     process to another.
 
-1. The SQINN2 Communication Protocol
+1. The sqinn2 Communication Protocol
 
 1.1. Data Types
 
-    SQINN2 defines the following data types:
+    sqinn2 defines the following data types:
 
         int32     A 4-byte integer value.
 
@@ -130,30 +130,30 @@ Abstract
 1.1.1. Value
 
     A value is encoded with its type (one byte), followed by the encoding of its
-	int32/int64/double/string/blob content.
+    int32/int64/double/string/blob content.
 
-	The following value types are defined:
+    The following value types are defined:
 
-	VT_NULL   0   A NULL value.
-	VT_INT32  1   An int32 value.
-	VT_INT64  2   An int64 value.
-	VT_DOUBLE 3   A double value.
-	VT_STRING 4   A string value.
-	VT_BLOB   5   A blob value.
+    VT_NULL   0   A NULL value.
+    VT_INT32  1   An int32 value.
+    VT_INT64  2   An int64 value.
+    VT_DOUBLE 3   A double value.
+    VT_STRING 4   A string value.
+    VT_BLOB   5   A blob value.
 
-	A sample value looks like this:
+    A sample value looks like this:
 
-	00      // NULL
+    00      // NULL
 
-	01 00 00 00 02 // VT_INT32 followed by a 4-byte int32 value 2.
+    01 00 00 00 02 // VT_INT32 followed by a 4-byte int32 value 2.
 
-	02 00 00 00 00 00 00 00 02 // VT_INT64 followed by a 8-byte int64 value 2.
+    02 00 00 00 00 00 00 00 02 // VT_INT64 followed by a 8-byte int64 value 2.
 
-	03 00 00 00 00 00 00 00 02 // VT_DOUBLE followed by a 8-byte double value.
+    03 00 00 00 00 00 00 00 02 // VT_DOUBLE followed by a 8-byte double value.
 
-	04 00 00 00 01 00  // VT_STRING followed by an empty string.
+    04 00 00 00 01 00  // VT_STRING followed by an empty string.
 
-	05 00 00 00 01 FF   // VT_BLOB followed by a 1-byte blob.
+    05 00 00 00 01 FF   // VT_BLOB followed by a 1-byte blob.
 
 1.1. Requests and Responses
 
@@ -170,7 +170,7 @@ Abstract
 
         FC_QUERY  2  Execute a parameterized SQL query (SELECT).
 
-        FC_QUIT   9  Close connection and quit.
+        FC_QUIT   9  Close connection, goodbye.
 
     A response is sent from the server back to the client. It has the
     following format:
@@ -194,37 +194,134 @@ Abstract
 
     It has the following data objects:
 
-    sql          string   The sql statement that should be executed.
+    sql       string   The sql statement that should be executed.
 
-    niterations  int32    Number of iterations. If niterations is 1,
-                          the statement is executed once. If it is
-                          greater than 1, the statement is executed
-                          multiple times, each time with another set of
-                          supplied parameters. This is useful, for
-                          example, for inserting many rows at once.
+    niter     int32    Number of iterations. If niter is 1,
+                       the statement is executed once. If it is
+                       greater than 1, the statement is executed
+                       multiple times, each time with another set of
+                       supplied parameters. This is useful, for
+                       example, for inserting many rows at once.
 
-    nparams      int32    The number of parameters per iteration. It can
-                          be 0.
+    nparams   int32    The number of parameters per iteration. It can
+                       be 0.
 
-    params       []value  An array of (niterations * nparams) parameter values.
+    params    []value  An array of parameter values. The length of this array is 
+                       niter x nparams. In other words, for each iteration,
+                       there are nparams values.
 
-    A sample FX_EXEC looks like this:
+    A sample FC_EXEC request looks like this:
 
     01                        // FC_EXEC
-    00 00 00 2C               // sql length
-	41 42 43 .... 34 00       // sql string content
+    00 00 00 2C               // length of sql
+    41 42 43 .. .. 00         // sql, null terminated
     00 00 00 02               // 2 iterations
     00 00 00 02               // 2 params per iteration
-    00                        // 
-	
+    01                        // type of iteration 0 param 0 (VT_INT32)
+    00 00 00 0A               // int32 value
+    cvvvv                     // type of iteration 0 param 1 (VT_STRING)
+    00 00 00 0A               // string length
+    41 42 .. .. 00            // string, null terminated
+    00                        // type of iteration 1 param 0 (VT_NULL)
+    00                        // type of iteration 1 param 1 (VT_NULL)
+
+    The server will prepare a statement with the provided sql, and
+    execute it niter times, each time feeding nparams parameter values
+    into the prepared statement. It sends a success response or an error response
+    back to the client.
+
+    A sample FC_EXEC success response looks like this:
+
+    01      // ok
+
+    A sample FC_EXEC error response looks like this:
+
+    00                 // not ok
+    00 00 00 2A        // length of errmsg
+    41 42 43 .. .. 00  // errmsg, null terminated
 
 
 |-------||-------||-------||-------||-------||-------||-------||-------|
 
+1.1.1 FC_QUERY
 
+    A FC_QUERY request tells the server that it should execute
+    a parameterized SQL statement
+    (SELECT, etc.), and return result values.
 
+    It has the following data objects:
 
+    sql       string   The sql statement that should be executed.
 
+    nparams   int32    The number of parameters. It can be 0.
+
+    params    []value  An array of parameter values. The length of this array is 
+                       nparams.
+
+    ncols     int32    The number of columns per result row.
+
+    coltypes  []byte   An array of column types (VT_INT32, VT_INT64, etc.).
+                       The length of this array is ncols. 
+
+    A sample FC_QUERY request looks like this:
+
+    02                        // FC_QUERY
+    00 00 00 2C               // length of sql
+    41 42 43 .. .. 00         // sql, null terminated
+    00 00 00 02               // 2 params
+    01                        //   param 0 type (VT_INT32)
+    00 00 00 0A               //     int32 value
+    cvvvv                     //   param 1 (VT_STRING)
+    00 00 00 0A               //     string length
+    41 42 43 .. .. 00         //     string, null terminated
+    00 00 00 02               // 2 columns
+    01                        //   column 0 type (VT_INT32)
+    04                        //   column 1 type (VT_STRING)
+
+    The server will prepare a statement with the provided sql,
+    execute it, and fetch all result rows, and send each column
+    value for each row back to the client.
+
+    A sample FC_QUERY success response looks like this:
+
+    01                 // has row
+    01                 //   value 0 type (VT_INT32)
+    00 00 00 02        //     int32 value
+    00                 //   value 1 type (VT_NULL)
+    01                 // has row
+    01                 //   value 0 type (VT_INT32)
+    00 00 00 02        //     int32 value
+    04                 //   value 1 type (VT_STRING)
+    00 00 00 0A        //     string length
+    41 42 43 .. .. 00  //     string, null terminated
+    00                 // no more rows
+    01                 // ok
+
+    A sample FC_QUERY error response looks like this:
+
+    01                 // has row
+    00                 //   type of value 0 (VT_NULL)
+    00                 //   type of value 1 (VT_NULL)
+    00                 // no more rows
+    00                 // not ok
+    00 00 00 2A        // errmsg length
+    41 42 43 .. .. 00  // errmsg, null terminated
+
+1.1.1 FC_QUIT
+
+    A FC_QUIT request tells the server that the client is done.
+
+    It has no further data objects.
+
+    A sample FC_QUIT request looks like this:
+
+    [0] 09      // FC_QUIT
+
+    A sample FC_QUIT success response looks like this:
+
+    [0] 01      // ok
+
+    There is no error response for FC_QUIT.
 
 
 

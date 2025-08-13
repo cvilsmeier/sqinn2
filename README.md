@@ -1,5 +1,5 @@
 
-![Sqinn2](logo-200.png "Sqinn2")
+![Sqinn2](logo.png "Sqinn2")
 
 
 > [!NOTE]
