@@ -8,7 +8,7 @@ void _readStdin(char *buf, size_t len) {
     while(c < len) {
         size_t n = read(STDIN_FILENO, buf+c, len-c);
         if (n<=0) {
-            ASSERT_FAIL("_readStdin: n=%ld", n);
+            ASSERT_FAIL("_readStdin: n=%zd", n);
         }
         c += n;
     }
@@ -20,7 +20,7 @@ void _writeStdout(char *buf, size_t len) {
     while(c < len) {
         size_t n = write(STDOUT_FILENO, buf+c, len-c);
         if (n<=0) {
-            ASSERT_FAIL("_writeStdout: n=%ld", n);
+            ASSERT_FAIL("_writeStdout: n=%zd", n);
         }
         c += n;
     }
@@ -224,7 +224,7 @@ static void _growWriter(Writer* this, size_t minSize) {
         }
         LOG_DEBUG1("_growWriter: newSize %ld ", newSize);
         if (newSize > MAX_LEN) {
-            ASSERT_FAIL("_growWriter: newSize %ld > MAX_LEN", newSize)
+            ASSERT_FAIL("_growWriter: newSize %zd > MAX_LEN", newSize)
         }   
         this->buf = memRealloc(this->buf, newSize);
         this->bufsz = newSize;
@@ -286,7 +286,7 @@ void Writer_writeInt64(Writer* this, int64_t value) {
     if (this->std) {
         _growWriter(this, this->wp + 8);
     }
-    ASSERTF(this->bufsz - this->wp >= 8, "this->bufsz %ld - this->wp %ld = %ld", this->bufsz, this->wp, this->bufsz - this->wp);
+    ASSERTF(this->bufsz - this->wp >= 8, "this->bufsz %zd - this->wp %zd = %zd", this->bufsz, this->wp, this->bufsz - this->wp);
     this->buf[this->wp + 0] = (char)(value >> 56);
     this->buf[this->wp + 1] = (char)(value >> 48);
     this->buf[this->wp + 2] = (char)(value >> 40);

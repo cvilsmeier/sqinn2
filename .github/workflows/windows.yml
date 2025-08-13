@@ -18,10 +18,10 @@ jobs:
       run: |
         echo "build start"
         dir
-        cl /Fe:sqinn2.exe lib\*.c
+        cl.exe /Fe:sqinn.exe lib\*.c
         dir
         echo "executing test"
-        sqinn2.exe -test
+        & "sqinn2.exe" -test
         md dist
         copy sqinn2.exe dist
         echo "build done"
