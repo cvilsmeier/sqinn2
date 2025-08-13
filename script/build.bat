@@ -1,4 +1,2 @@
 REM Must have MSVC Build Tools installed
-rd /S /Q bin
-md bin
-cl.exe /Fe:bin\sqinn.exe src\*.c
+cl.exe /Fe:sqinn2.exe lib\*.c
