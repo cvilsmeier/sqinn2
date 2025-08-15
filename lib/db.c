@@ -392,7 +392,7 @@ static void testSqliteStmtCaching() {
             sq_close(db);
         }
     }
-    // Statement caching is a thing. Maybe for next sqinn2 version?
+    // TODO Statement caching is a thing.
     // without caching took 1658 clocks
     // with    caching took  517 clocks
     // without caching took 1521 clocks

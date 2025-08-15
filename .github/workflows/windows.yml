@@ -21,10 +21,10 @@ jobs:
         script\build.bat
         dir
         echo "run test"
-        .\sqinn2.exe -test -loglevel 1 -logstderr
+        .\sqinn.exe test -loglevel 1 -logstderr
         echo "make dist folder"
         md dist
-        copy sqinn2.exe dist
+        copy sqinn.exe dist
         echo "build done"
 
     - name: Upload Artifact

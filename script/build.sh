@@ -23,5 +23,5 @@ $CC -static \
     bin/db.o \
     bin/app.o \
     bin/main.o \
-    -o bin/sqinn2
+    -o bin/sqinn
 

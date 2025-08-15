@@ -20,13 +20,13 @@ jobs:
         script/clean.sh
         script/build.sh
         echo "executing test"
-        bin/sqinn2 -version
-        bin/sqinn2 -sqlite
-        bin/sqinn2 -test
+        bin/sqinn version
+        bin/sqinn sqlite
+        bin/sqinn test
         echo "build done"
         rm -rf dist/
         mkdir dist/
-        cp bin/sqinn2 dist/
+        cp bin/sqinn dist/
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
